@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#1e1b4b" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="brain-grad" cx="50%" cy="45%" r="45%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="50%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" fill="#0a0a0a"/>
+  <circle cx="200" cy="200" r="180" fill="url(#glow)"/>
+  <!-- Brain silhouette -->
+  <ellipse cx="200" cy="180" rx="120" ry="130" fill="url(#brain-grad)" opacity="0.8"/>
+  <!-- Left hemisphere folds -->
+  <path d="M120 130 Q140 110 160 130 Q180 150 160 170" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.6"/>
+  <path d="M130 160 Q150 140 170 160 Q190 180 170 200" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.6"/>
+  <path d="M140 200 Q160 180 180 200 Q200 220 180 240" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.5"/>
+  <!-- Right hemisphere folds -->
+  <path d="M280 130 Q260 110 240 130 Q220 150 240 170" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.6"/>
+  <path d="M270 160 Q250 140 230 160 Q210 180 230 200" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.6"/>
+  <path d="M260 200 Q240 180 220 200 Q200 220 220 240" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.5"/>
+  <!-- Central fissure -->
+  <line x1="200" y1="60" x2="200" y2="280" stroke="#6d28d9" stroke-width="1.5" opacity="0.5"/>
+  <!-- Cerebellum -->
+  <ellipse cx="200" cy="290" rx="60" ry="25" fill="#6d28d9" opacity="0.6"/>
+  <!-- Brain stem -->
+  <rect x="190" y="300" width="20" height="40" rx="8" fill="#5b21b6" opacity="0.5"/>
+  <!-- Hotspots -->
+  <circle cx="160" cy="140" r="8" fill="#f43f5e" opacity="0.7"><animate attributeName="opacity" values="0.4;0.9;0.4" dur="2s" repeatCount="indefinite"/></circle>
+  <circle cx="240" cy="140" r="6" fill="#3b82f6" opacity="0.6"><animate attributeName="opacity" values="0.3;0.8;0.3" dur="2.5s" repeatCount="indefinite"/></circle>
+  <circle cx="200" cy="180" r="5" fill="#22c55e" opacity="0.6"><animate attributeName="opacity" values="0.3;0.7;0.3" dur="1.8s" repeatCount="indefinite"/></circle>
+  <!-- Label -->
+  <text x="200" y="380" text-anchor="middle" fill="#a78bfa" font-family="sans-serif" font-size="14" opacity="0.7">Mean Brain Activation</text>
+</svg>
