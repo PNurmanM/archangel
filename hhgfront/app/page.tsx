@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, useMotionValue, useTransform, useSpring, useScroll, useMotionValueEvent } from "framer-motion";
-import { Play, Upload, Cpu, Eye, FileText, ArrowRight } from "lucide-react";
+import { Play, Upload, Cpu, Eye, FileText, ArrowRight, Radio } from "lucide-react";
 import { ArchAngelLogo } from "@/components/logo";
+import { LiveStatus } from "@/components/live-status";
 import { VideoUploader } from "@/components/video-uploader";
 import { BrainViewer } from "@/components/brain-viewer";
 import { SnapshotRail } from "@/components/snapshot-rail";
@@ -14,6 +15,7 @@ import { SummaryPanel } from "@/components/summary-panel";
 import { uploadVideo } from "@/lib/api";
 import { mockPrediction } from "@/lib/mock-data";
 import { BrainPrediction } from "@/lib/types";
+import { connectLiveStream, getFrameUrl, LivePrediction } from "@/lib/live-stream";
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`skeleton ${className ?? ""}`} />;
@@ -61,13 +63,61 @@ function NeuralBackground() {
   );
 }
 
+function liveToBrainPrediction(live: LivePrediction): BrainPrediction & Record<string, any> {
+  const spike = live.spike ?? "steady";
+  const spikePct = live.spike_pct ?? 0;
+  const emotions = live.emotions ?? {};
+
+  const summaryLines = [
+    `Live inference #${live.inference_count} | ${live.timing_ms}ms`,
+    `State: ${spike} (${spikePct > 0 ? "+" : ""}${spikePct.toFixed(1)}%)`,
+    "",
+    `Fear/Anxiety:      ${emotions.fear_anxiety?.toFixed(4) ?? "—"}`,
+    `Anger/Stress:      ${emotions.anger_stress?.toFixed(4) ?? "—"}`,
+    `Emotional Arousal: ${emotions.emotional_arousal?.toFixed(4) ?? "—"}`,
+    `Social Emotion:    ${emotions.social_emotion?.toFixed(4) ?? "—"}`,
+    "",
+    `Dominant System: ${live.dominantSystem}`,
+    `Alert: ${live.alertLabel}`,
+  ];
+
+  return {
+    inputVideoUrl: "",
+    brainMovieUrl: "",
+    meanBrainUrl: "",
+    peakBrainUrl: "",
+    systemScores: live.systemScores,
+    alertLevel: live.alertLevel,
+    alertLabel: live.alertLabel,
+    topRegions: live.topRegions,
+    summary: summaryLines.join("\n"),
+    totalActivity: live.totalActivity,
+    dominantSystem: live.dominantSystem,
+    engagement: live.engagement,
+    timeline: live.timeline,
+    // Pass through raw live fields for LiveStatus component
+    spike: live.spike,
+    spike_pct: live.spike_pct,
+    emotions: live.emotions,
+    timing_ms: live.timing_ms,
+    inference_count: live.inference_count,
+    history_length: live.history_length,
+  };
+}
+
 export default function Page() {
   const [prediction, setPrediction] = useState<BrainPrediction | null>(mockPrediction);
   const [isProcessing, setIsProcessing] = useState(false);
-  /* User-uploaded video URL — kept separate from prediction so it persists after mock API returns */
   const [userVideoUrl, setUserVideoUrl] = useState<string | null>(null);
   const [userFileName, setUserFileName] = useState<string | null>(null);
   const [processingStage, setProcessingStage] = useState<string>("");
+
+  /* Live streaming state */
+  const [isLive, setIsLive] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<string>("disconnected");
+  const liveCleanupRef = useRef<(() => void) | null>(null);
+  const frameRef = useRef<HTMLImageElement>(null);
+  const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const inputVideoRef = useRef<HTMLVideoElement>(null);
   const brainVideoRef = useRef<HTMLVideoElement>(null);
@@ -173,6 +223,56 @@ export default function Page() {
     }, 2000);
   }, []);
 
+  const handleLiveToggle = useCallback(() => {
+    if (isLive) {
+      // Stop live
+      liveCleanupRef.current?.();
+      liveCleanupRef.current = null;
+      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+      frameIntervalRef.current = null;
+      setIsLive(false);
+      setLiveStatus("disconnected");
+    } else {
+      // Start live
+      setIsLive(true);
+      setPrediction(null);
+      setUserVideoUrl(null);
+      setUserFileName(null);
+
+      const cleanup = connectLiveStream(
+        (pred) => {
+          setPrediction(liveToBrainPrediction(pred));
+        },
+        (status) => {
+          setLiveStatus(status);
+          if (status === "buffering") {
+            setProcessingStage("Buffering frames from Jetson...");
+            setIsProcessing(true);
+          } else if (status === "connected") {
+            setIsProcessing(false);
+            setProcessingStage("");
+          }
+        },
+      );
+      liveCleanupRef.current = cleanup;
+
+      // Refresh camera frame every 200ms
+      frameIntervalRef.current = setInterval(() => {
+        if (frameRef.current) {
+          frameRef.current.src = getFrameUrl();
+        }
+      }, 200);
+    }
+  }, [isLive]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      liveCleanupRef.current?.();
+      if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+    };
+  }, []);
+
   /** Helper for all file inputs — handles file + resets value so same file can be re-selected */
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -207,6 +307,13 @@ export default function Page() {
             </span>
           </div>
           <div className="flex items-center gap-2.5">
+            <button
+              onClick={handleLiveToggle}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[12px] ${isLive ? "btn-primary bg-red-600 hover:bg-red-700" : "btn-secondary"}`}
+            >
+              <Radio className={`h-3 w-3 ${isLive ? "animate-pulse" : ""}`} />
+              {isLive ? "Stop Live" : "Go Live"}
+            </button>
             <label className="btn-secondary flex items-center gap-1.5 px-3.5 py-1.5 text-[12px] cursor-pointer">
               <Upload className="h-3 w-3" />
               Upload Clip
@@ -267,6 +374,13 @@ export default function Page() {
               </span>
             </div>
             <div className="flex items-center gap-2.5">
+              <button
+                onClick={handleLiveToggle}
+                className={`flex items-center gap-1.5 px-4 py-2 text-[13px] ${isLive ? "btn-primary bg-red-600 hover:bg-red-700" : "btn-secondary"}`}
+              >
+                <Radio className={`h-3.5 w-3.5 ${isLive ? "animate-pulse" : ""}`} />
+                {isLive ? "Stop Live" : "Go Live"}
+              </button>
               <label className="btn-secondary flex items-center gap-1.5 px-4 py-2 text-[13px] cursor-pointer">
                 <Upload className="h-3.5 w-3.5" />
                 Upload Clip
@@ -335,9 +449,16 @@ export default function Page() {
               className="flex items-center gap-3 mt-10"
             >
               <button
+                onClick={handleLiveToggle}
+                className={`flex items-center gap-2 px-7 py-3 text-[14px] ${isLive ? "btn-primary bg-red-600 hover:bg-red-700" : "btn-primary"}`}
+              >
+                <Radio className={`h-4 w-4 ${isLive ? "animate-pulse" : ""}`} />
+                {isLive ? "Stop Live" : "Go Live"}
+              </button>
+              <button
                 onClick={handleDemo}
                 disabled={isProcessing}
-                className="btn-primary flex items-center gap-2 px-7 py-3 text-[14px] disabled:opacity-50"
+                className="btn-secondary flex items-center gap-2 px-6 py-3 text-[14px] disabled:opacity-50"
               >
                 <Play className="h-4 w-4" />
                 {isProcessing ? "Processing..." : "Run Demo"}
@@ -391,7 +512,37 @@ export default function Page() {
             externalFileName={userFileName ?? undefined}
           />
 
-          {prediction ? (
+          {isLive ? (
+            <div className="card-surface relative min-h-[280px] overflow-hidden flex items-center justify-center">
+              <img
+                ref={frameRef}
+                alt="Live camera feed"
+                className="w-full h-full object-cover rounded-xl"
+                style={{ minHeight: 280 }}
+              />
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 px-2.5 py-1 rounded-full">
+                <div className={`w-2 h-2 rounded-full ${liveStatus === "connected" || prediction ? "bg-red-500 animate-pulse" : "bg-yellow-500"}`} />
+                <span className="text-[11px] text-white font-medium">
+                  {liveStatus === "connected" || prediction ? "LIVE" : liveStatus.toUpperCase()}
+                </span>
+              </div>
+              {prediction && (
+                <div className="absolute bottom-3 left-3 right-3 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-white/70">
+                      {prediction.dominantSystem} | {prediction.engagement} emotion score
+                    </span>
+                    <span className={`text-[11px] font-bold ${
+                      prediction.alertLevel === "ALERT" ? "text-red-400" :
+                      prediction.alertLevel === "WATCH" ? "text-yellow-400" : "text-green-400"
+                    }`}>
+                      {prediction.alertLabel}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : prediction ? (
             <BrainViewer
               brainMovieUrl={prediction.brainMovieUrl}
               meanBrainUrl={prediction.meanBrainUrl}
@@ -421,6 +572,9 @@ export default function Page() {
             <Skeleton className="min-h-[280px]" />
           )}
         </motion.section>
+
+        {/* ═══════════ LIVE STATUS BAR ═══════════ */}
+        <LiveStatus prediction={prediction} isLive={isLive} liveStatus={liveStatus} />
 
         {/* ═══════════ ANALYTICS ═══════════ */}
         {isProcessing && !prediction ? (

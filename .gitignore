@@ -3,6 +3,11 @@ cache/
 outputs/
 hhg/
 .claude/
+.codex/
+archangel/
+testimg/
+node_modules/
+.next/
 *.npy
 *.mp4
 *.wav
