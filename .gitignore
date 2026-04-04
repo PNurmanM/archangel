@@ -1,0 +1,11 @@
+__pycache__/
+cache/
+outputs/
+hhg/
+.claude/
+*.npy
+*.mp4
+*.wav
+*.jpg
+*.jpeg
+*.png
